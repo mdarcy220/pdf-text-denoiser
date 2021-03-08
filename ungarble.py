@@ -37,7 +37,7 @@ class NltkUngarbler:
         for tok in tokens:
             # 12 is 99th percentile based on a sample from wikipedia
             if len(tok) > 12 and not self.spell_checker.check(tok):
-                badness += 1.5
+                badness += 1.5*len(tok)/8
         return -badness - len(tokens)
 
     def make_candidate_splits(self, token, max_subtokens=4):
@@ -60,7 +60,7 @@ class NltkUngarbler:
             split1 = self.split_into_words(parts[0])
             split2 = self.split_into_words(parts[2])
             return split1[:-1] + (split1[-1] + parts[1] + split2[0],) + split2[1:]
-        return max(self.make_candidate_splits(token), key=self.tokens_score)
+        return max(self.make_candidate_splits(token, max_subtokens=max(3, 1+len(token)//4)), key=self.tokens_score)
 
     def detokenize(self, tokens):
         string = nltk.tokenize.treebank.TreebankWordDetokenizer().detokenize([tok.replace("''", '"') for tok in tokens])
