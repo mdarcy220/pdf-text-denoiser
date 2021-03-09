@@ -25,6 +25,8 @@ class NltkUngarbler:
             return 1.0
         if len(token) == 1:
             return 0.05
+        if all(c.isdigit() or c == '/' for c in token):
+            return 0.95
         if token.isupper() or (token[:-1].isupper() and token[-1] == 's'):
             return 0.95
         if token[0].isupper() and token[1:].islower():
@@ -60,7 +62,10 @@ class NltkUngarbler:
             split1 = self.split_into_words(parts[0])
             split2 = self.split_into_words(parts[2])
             return split1[:-1] + (split1[-1] + parts[1] + split2[0],) + split2[1:]
-        return max(self.make_candidate_splits(token, max_subtokens=max(3, 1+len(token)//4)), key=self.tokens_score)
+        candidates = self.make_candidate_splits(token, max_subtokens=max(3, 1+len(token)//4))
+        if len(candidates) == 0:
+            return (token,)
+        return max(candidates, key=self.tokens_score)
 
     def detokenize(self, tokens):
         string = nltk.tokenize.treebank.TreebankWordDetokenizer().detokenize([tok.replace("''", '"') for tok in tokens])
@@ -69,7 +74,8 @@ class NltkUngarbler:
         string = string.replace(' "', '"').replace("``", ' "')
 
         # Fix periods (they should generally join to the left)
-        string = re.sub(r' \.([^ ])', r'. \1', string)
+        string = re.sub(r'\s+\.([^ ])', r'. \1', string)
+        string = re.sub(r'\s+\. +', r'. ', string)
         string = re.sub(r'([^ A-Za-z.])\.([^ ])', r'\1. \2', string)
 
         return string
@@ -79,7 +85,15 @@ class NltkUngarbler:
         tokens = nltk.tokenize.treebank.TreebankWordTokenizer().tokenize(garbled_text)
         new_tokens = []
         for token in tokens:
-            if not token.replace('-', '').isalnum():
+            if token[-1] == '.' and token != '.':
+                new_tokens.append(token[:-1])
+                new_tokens.append('.')
+                continue
+            new_tokens.append(token)
+        tokens = new_tokens
+        new_tokens = []
+        for token in tokens:
+            if not all(ord(c) > 0x20 and ord(c) < 0x7f for c in token):
                 new_tokens.append(token)
                 continue
 
@@ -103,7 +117,8 @@ if __name__ == '__main__':
 "maybe of varying specificity:headquarterInmay beexpressed directly by open relations ",
 "Using a conven-tional EL system, the first mentionAndrei Broder1can  be  easily  linked  toAndreiBroder ",
 "we   pro-pose  a  novelTransformer-based  heterogeneousGNN   model ",
-"vertices corre-spond tomentions of entitiesand edges toopenrelations(see Fig. 1)."  ]
+"vertices corre-spond tomentions of entitiesand edges toopenrelations(see Fig. 1).",
+"One participant who does not like mathematics got8/20 = 40% correct. A participant ambivalent toward mathematics got13/20. Two participants who like mathematics got14/20and15/20. A participant who got a perfect score on the AMC 10 exam and attended USAM Oseveral times got18/20. A three-time IMO gold medalist got18/20 = 90%"]
     ug = NltkUngarbler()
     for text in test_texts:
         print(ug.ungarble(text))
